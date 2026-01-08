@@ -21,6 +21,15 @@ class SingleLinkedList:
         else:
             self.head = temp
     
+    def deleteLL(self, value):
+        prev = self.head
+        while(prev != None and prev.info != value):
+            if (prev.next.info == value):
+                break
+            prev = prev.next
+        if (prev != None):
+            prev.next = prev.next.next
+
     def insertAtMid(self, value, posVal):
         temp = Node(value)
         t1 = self.head
@@ -51,6 +60,8 @@ for i in range(5, 10):
     obj.insertAtBeg(i+1)
 
 obj.insertAtMid(100, 2)
+obj.deleteLL(3)
+obj.deleteLL(4)
 
 obj.printLL()
 
