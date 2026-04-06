@@ -33,7 +33,37 @@ def connectWIFI():
                     print("NTP sync failed:", e)
                 break
             time.sleep(1)
+    print("Wifi connection status is :", wlan.isconnected())
     return wlan.isconnected()
+
+def connectWIFI():
+    try:
+        if wlan.isconnected():
+            return True
+
+        wlan.active(True)
+        if wlan.status() != network.STAT_CONNECTING:
+            print("Connecting to WiFi...")
+            wlan.connect(WIFI_SSID, WIFI_PASS)
+        
+        for _ in range(5): 
+            if wlan.isconnected():
+                print("WiFi Connected!")
+                try:
+                    ntptime.settime() # Sync time
+                except:
+                    pass 
+                return True
+            time.sleep(1)
+            
+        return False
+        
+    except OSError as e:
+        print("WiFi Driver Error (State Error). Resetting interface...")
+        wlan.active(False) # Turn it off
+        time.sleep(1)
+        wlan.active(True)  # Turn it back on to 'clear' the state
+        return False
 
 def saveLocally(data):
     try:
@@ -79,17 +109,17 @@ while True:
         if connectWIFI():
             syncData()
             print("Sending current data...")
-            # Use a timeout to prevent the script from hanging/unpacking errors on bad networks
             res = urequests.post(API_URL, json=payload, timeout=10)
             res.close()
             print("Success:", payload)
         else:
+            print("saving locally...")
             saveLocally(payload)
             
     except Exception as e:
-        # This will tell you the EXACT line number and type of error
         import sys
         print("Loop error:")
         sys.print_exception(e)
         
     time.sleep(10)
+
