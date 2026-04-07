@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Weather Monitor | Unified View</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --temp-color: #ef4444; --hum-color: #06b6d4; --bg: #0f172a; --card-bg: #1e293b; --text: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; width: 100%; max-width: 1100px; margin-bottom: 2rem; }
+        .stat-card { background: var(--card-bg); padding: 1.5rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); text-align: center; }
+        .stat-value { font-size: 2.5rem; font-weight: 700; margin-top: 0.5rem; }
+        .chart-container { width: 100%; max-width: 1100px; background: var(--card-bg); padding: 1.5rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); height: 500px; }
+        #status { margin-top: 1rem; font-size: 0.8rem; color: #94a3b8; width: 100%; max-width: 1100px; text-align: right; }
+    </style>
+</head>
+<body>
+
+    <h1 style="margin-bottom: 2rem;">Environment Analytics</h1>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div style="color: #94a3b8; font-size: 0.8rem; letter-spacing: 0.1em;">TEMPERATURE</div>
+            <div class="stat-value" id="currentTemp" style="color: var(--temp-color)">--°C</div>
+        </div>
+        <div class="stat-card">
+            <div style="color: #94a3b8; font-size: 0.8rem; letter-spacing: 0.1em;">HUMIDITY</div>
+            <div class="stat-value" id="currentHum" style="color: var(--hum-color)">--%</div>
+        </div>
+        <div class="stat-card">
+            <div style="color: #94a3b8; font-size: 0.8rem; letter-spacing: 0.1em;">TOTAL READINGS</div>
+            <div class="stat-value" id="dataCount">0</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="liveWeatherChart"></canvas>
+    </div>
+    <div id="status">Synchronizing...</div>
+
+<script>
+    const API_URL = "https://3000-firebase-temprature-data-1775386871390.cluster-bqwaigqtxbeautecnatk4o6ynk.cloudworkstations.dev/data";
+    let weatherChart;
+
+    function initChart() {
+        const ctx = document.getElementById('liveWeatherChart').getContext('2d');
+        weatherChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Temperature (°C)',
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        data: [],
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        fill: false, // Changed to false for cleaner unified look
+                        borderWidth: 4
+                    },
+                    {
+                        label: 'Humidity (%)',
+                        borderColor: '#06b6d4',
+                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                        data: [],
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        fill: false,
+                        borderWidth: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#f8fafc', font: { size: 14 } } },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { 
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        title: { display: true, text: 'Time (Timestamp)', color: '#94a3b8' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Value (Units)', color: '#94a3b8' },
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        suggestedMax: 100 // Scale up to 100 since humidity is %
+                    }
+                }
+            }
+        });
+    }
+
+    async function fetchData() {
+        try {
+            const response = await fetch(API_URL);
+            const result = await response.json();
+
+            if (result.success && result.data.length > 0) {
+                // Sort oldest to newest
+                const sortedData = result.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                // Last 15 readings
+                const displayData = sortedData.slice(-15);
+
+                const labels = displayData.map(item => {
+                    const d = new Date(item.timestamp);
+                    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+                
+                const tempValues = displayData.map(item => item.temp);
+                const humValues = displayData.map(item => item.hum);
+
+                // Update Cards
+                const latest = displayData[displayData.length - 1];
+                document.getElementById('currentTemp').innerText = `${latest.temp}°C`;
+                document.getElementById('currentHum').innerText = `${latest.hum}%`;
+                document.getElementById('dataCount').innerText = result.data.length;
+                document.getElementById('status').innerText = `Sync: ${new Date().toLocaleTimeString()}`;
+
+                // Update Chart
+                weatherChart.data.labels = labels;
+                weatherChart.data.datasets[0].data = tempValues;
+                weatherChart.data.datasets[1].data = humValues;
+                
+                weatherChart.update();
+            }
+        } catch (error) {
+            console.error("API Error:", error);
+        }
+    }
+
+    initChart();
+    fetchData(); 
+    setInterval(fetchData, 10000);
+</script>
+</body>
+</html>
